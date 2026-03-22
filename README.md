@@ -5,7 +5,7 @@ A **web-based tool** that analyzes the **CDN (Content Delivery Network) performa
 ## Features
 - **CDN Detection**: Identifies which CDN a website uses (Cloudflare, AWS CloudFront, Akamai, etc.).
 - **Performance Metrics**: Measures DNS time, connection time, TTFB, and total load time.
-- **Cache Performance**: Checks whether the CDN is caching content properly.
+- **Cache Performance**: Checks hether the CDN is caching content properly.
 - **Performance Scoring**: Provides a score (0–100) and a letter grade based on response times and caching.
 - **Load Testing**: Simulates 20 rapid requests to test performance under load.
 - **Visualizations**: Interactive charts display the timing breakdown, performance distribution, and load test results (powered by Chart.js).
