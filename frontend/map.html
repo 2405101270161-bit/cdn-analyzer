@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Global Map - CDN Performance Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map-container { height: 500px; width: 100%; border-radius: 12px; margin-top: 20px; z-index: 1; border: 1px solid rgba(100,140,255,0.08); }
+        .leaflet-container { background: #06080f; }
+        .custom-popup { color: #fff; background: rgba(15, 20, 35, 0.9); border-radius: 8px; padding: 10px; border: 1px solid rgba(0,212,255,0.2); }
+        .custom-popup .leaflet-popup-content-wrapper { background: transparent; color: #fff; box-shadow: none; }
+        .custom-popup .leaflet-popup-tip { background: rgba(15, 20, 35, 0.9); }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div><div class="bg-glow bg-glow-1"></div><div class="bg-glow bg-glow-2"></div>
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon"><svg viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="url(#grad)" stroke-width="2.5"/></svg></div>
+                <div><h1>CDN Analyzer</h1><p class="subtitle">Global Network Visualization</p></div>
+            </div>
+        </div>
+    </header>
+    <nav class="main-nav">
+        <div class="nav-inner">
+            <a href="/dashboard" class="nav-link">Analyzer</a>
+            <a href="/monitor" class="nav-link">Monitor</a>
+            <a href="/compare" class="nav-link">Compare</a>
+            <a href="/map" class="nav-link active">Global Map</a>
+            <a href="/errors" class="nav-link">Errors</a>
+        </div>
+    </nav>
+    <main class="main">
+        <section class="input-section">
+            <div class="input-card glass-card">
+                <div class="input-label">Visualize Global TTFB Latency</div>
+                <div class="input-row">
+                    <div class="input-wrapper">
+                        <span class="input-prefix">https://</span>
+                        <input type="text" id="url-input" placeholder="example.com">
+                    </div>
+                    <button class="btn btn-primary" onclick="loadMapData()" id="btn-map">Load Map</button>
+                </div>
+            </div>
+        </section>
+        <section id="map-results" style="display:none;">
+            <div class="glass-card">
+                <h3 class="card-title">Global Latency Distribution</h3>
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <span style="font-size:0.8rem;"><span style="color:#00e676;">●</span> Fast (&lt;100ms)</span>
+                    <span style="font-size:0.8rem;"><span style="color:#ffea00;">●</span> Medium (100ms-300ms)</span>
+                    <span style="font-size:0.8rem;"><span style="color:#ff3d00;">●</span> Slow (&gt;300ms)</span>
+                </div>
+                <div id="map-container"></div>
+            </div>
+        </section>
+    </main>
+    <script>
+        let map = null;
+        let markers = [];
+        async function loadMapData() {
+            const url = document.getElementById("url-input").value.trim();
+            if(!url) return;
+            
+            document.getElementById("btn-map").disabled = true;
+            try {
+                const r = await fetch("/api/global-stats", { method:"POST", body: JSON.stringify({url}) });
+                const data = await r.json();
+                renderMap(data.locations);
+            } catch(e) { alert("Error loading map data"); }
+            document.getElementById("btn-map").disabled = false;
+        }
+
+        function renderMap(locations) {
+            document.getElementById("map-results").style.display = "block";
+            
+            if(!map) {
+                map = L.map('map-container').setView([20, 10], 2);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; CARTO',
+                    subdomains: 'abcd',
+                    maxZoom: 20
+                }).addTo(map);
+            }
+            
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+            
+            locations.forEach(loc => {
+                const circleColor = loc.color;
+                const circle = L.circleMarker([loc.lat, loc.lng], {
+                    radius: 12,
+                    fillColor: circleColor,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+                
+                circle.bindPopup(
+                    `<div class="custom-popup">
+                        <strong>${loc.name}</strong><br>
+                        Lat: ${loc.lat}, Lng: ${loc.lng}<br>
+                        <strong>TTFB: ${loc.ttfb} ms</strong>
+                    </div>`
+                );
+                markers.push(circle);
+            });
+        }
+    </script>
+</body>
+</html>

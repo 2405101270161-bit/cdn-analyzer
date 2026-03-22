@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Errors - CDN Performance Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="bg-grid"></div><div class="bg-glow bg-glow-1"></div><div class="bg-glow bg-glow-2"></div>
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon"><svg viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="url(#grad)" stroke-width="2.5"/></svg></div>
+                <div><h1>CDN Analyzer</h1><p class="subtitle">Error Monitoring Log</p></div>
+            </div>
+            <div class="header-badge">
+                 <button class="btn btn-ghost" onclick="loadErrors()">Refresh Logs</button>
+            </div>
+        </div>
+    </header>
+    <nav class="main-nav">
+        <div class="nav-inner">
+            <a href="/dashboard" class="nav-link">Analyzer</a>
+            <a href="/monitor" class="nav-link">Monitor</a>
+            <a href="/compare" class="nav-link">Compare</a>
+            <a href="/map" class="nav-link">Global Map</a>
+            <a href="/errors" class="nav-link active">Errors</a>
+        </div>
+    </nav>
+    <main class="main">
+        <section>
+            <div class="glass-card">
+                <h3 class="card-title">Recent HTTP Errors & Failures</h3>
+                <div class="table-wrap">
+                    <table class="history-table">
+                        <thead><tr><th>Time</th><th>Target URL</th><th>Status Code</th><th>Error Details</th></tr></thead>
+                        <tbody id="errors-table-body">
+                            <tr><td colspan="4" class="empty-row">Loading errors...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script>
+        async function loadErrors() {
+            try {
+                const r = await fetch("/api/errors");
+                const data = await r.json();
+                const tbody = document.getElementById("errors-table-body");
+                if(!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="empty-row">No errors found.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.map(err => `<tr>
+                    <td>${new Date(err.timestamp+"Z").toLocaleString()}</td>
+                    <td>${err.url}</td>
+                    <td><span class="score-pill ${err.status_code >= 500 ? 'score-pill-bad' : 'score-pill-meh'}">${err.status_code || 'N/A'}</span></td>
+                    <td style="color:#ff5252">${err.error_message}</td>
+                </tr>`).join("");
+            } catch(e) {}
+        }
+        document.addEventListener("DOMContentLoaded", loadErrors);
+    </script>
+</body>
+</html>

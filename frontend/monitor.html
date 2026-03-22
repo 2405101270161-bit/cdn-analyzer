@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Monitor - CDN Performance Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="bg-grid"></div><div class="bg-glow bg-glow-1"></div><div class="bg-glow bg-glow-2"></div>
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon"><svg viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="url(#grad)" stroke-width="2.5"/></svg></div>
+                <div><h1>CDN Analyzer</h1><p class="subtitle">Real-Time Monitor</p></div>
+            </div>
+        </div>
+    </header>
+    <nav class="main-nav">
+        <div class="nav-inner">
+            <a href="/dashboard" class="nav-link">Analyzer</a>
+            <a href="/monitor" class="nav-link active">Monitor</a>
+            <a href="/compare" class="nav-link">Compare</a>
+            <a href="/map" class="nav-link">Global Map</a>
+            <a href="/errors" class="nav-link">Errors</a>
+        </div>
+    </nav>
+    <main class="main">
+        <section class="input-section">
+            <div class="input-card glass-card">
+                <div class="input-label">Real-Time Target</div>
+                <div class="input-row">
+                    <div class="input-wrapper">
+                        <span class="input-prefix">https://</span>
+                        <input type="text" id="url-input" placeholder="example.com">
+                    </div>
+                    <button class="btn btn-primary" onclick="startMonitor()">Start Monitoring</button>
+                    <button class="btn btn-ghost btn-danger" onclick="stopMonitor()">Stop</button>
+                </div>
+            </div>
+        </section>
+        <section class="results-section" id="monitor-results" style="display:none;">
+            <!-- Live Status & Score -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="glass-card flex flex-col items-center justify-center p-6 col-span-1 md:col-span-3 lg:col-span-1">
+                    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Live Status</h3>
+                    <div id="live-status-indicator" class="flex flex-col items-center">
+                        <div class="relative flex items-center justify-center w-16 h-16 rounded-full bg-green-500/20 border border-green-500/50 mb-3 shadow-[0_0_15px_rgba(34,197,94,0.3)]">
+                            <span class="w-6 h-6 rounded-full bg-green-500 animate-pulse"></span>
+                        </div>
+                        <span class="text-lg font-bold text-green-400" id="live-status-text">Website Healthy</span>
+                    </div>
+                </div>
+
+                <div class="glass-card flex flex-col p-6 col-span-1 md:col-span-3 lg:col-span-2">
+                    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Performance Score Card</h3>
+                    <div class="flex items-center justify-between h-full">
+                        <div class="relative w-28 h-28 flex-shrink-0">
+                            <div class="absolute inset-0 flex items-center justify-center rounded-full border-4 border-[var(--accent)] bg-[var(--accent)]/10">
+                                <span class="text-4xl font-black text-white" id="overall-score">--</span>
+                            </div>
+                        </div>
+                        <div class="flex-1 ml-8 grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-xs text-gray-400 uppercase font-semibold">TTFB</span>
+                                <div class="text-xl font-bold mt-1" id="score-ttfb">--</div>
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-400 uppercase font-semibold">Load Time</span>
+                                <div class="text-xl font-bold mt-1" id="score-total">--</div>
+                            </div>
+                            <div class="col-span-2 mt-2 pt-2 border-t border-[rgba(255,255,255,0.05)]">
+                                <span class="text-xs text-gray-400 uppercase font-semibold">Overall Status</span>
+                                <div class="text-lg font-bold mt-1" id="score-status">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Chart Card -->
+                <div class="glass-card p-6 flex flex-col">
+                    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Response Time Metrics</h3>
+                    <div class="flex-1 min-h-[300px] w-full relative">
+                        <canvas id="monitor-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Recent Logs Card -->
+                <div class="glass-card p-6 flex flex-col min-h-[300px] max-h-[450px]">
+                    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 flex justify-between items-center">
+                        <span>Recent Results</span>
+                        <span class="text-xs font-normal text-[var(--accent)] lowercase flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse"></span> Polling every 10s</span>
+                    </h3>
+                    <div class="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar" id="monitor-cards-container">
+                        <!-- Content populated via JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+    </style>
+    <script>
+        let chart = null;
+        let pollInterval = null;
+
+        function formatTime(timestamp) {
+            let d = new Date(timestamp);
+            if (isNaN(d.getTime())) {
+                d = new Date(timestamp + "Z");
+            }
+            if (isNaN(d.getTime())) return "Invalid";
+            return d.toLocaleTimeString('en-US', { hour12: false });
+        }
+        
+        function getPerformanceColor(value, type) {
+            if (value < 500) return "text-[#00e676]"; // Green
+            if (value <= 1500) return "text-[#ffab00]"; // Yellow
+            return "text-[#ff5252]"; // Red
+        }
+
+        function getProgressColor(value, type) {
+            if (value < 500) return "bg-[#00e676]";
+            if (value <= 1500) return "bg-[#ffab00]";
+            return "bg-[#ff5252]";
+        }
+        
+        function getProgressWidth(value, max = 2000) {
+            return Math.min(100, (value / max) * 100) + "%";
+        }
+
+        async function fetchStatus(url) {
+            const r = await fetch("/api/monitor/status?url=" + encodeURIComponent(url), { credentials: "include" });
+            if(r.ok) {
+                const data = await r.json();
+                if(data.is_active || (data.results && data.results.length > 0)) {
+                    document.getElementById("monitor-results").style.display = "block";
+                    renderData(data.results || []);
+                    
+                    if (!data.is_active) {
+                        document.getElementById('live-status-indicator').innerHTML = `<div class="relative flex items-center justify-center w-16 h-16 rounded-full bg-gray-500/20 border border-gray-500/50 mb-3"><span class="w-6 h-6 rounded-full bg-gray-500"></span></div>`;
+                        document.getElementById('live-status-text').innerText = "Monitoring Paused";
+                        document.getElementById('live-status-text').className = "text-lg font-bold text-gray-400 text-center";
+                    }
+                }
+            }
+        }
+
+        function renderData(results) {
+            const container = document.getElementById("monitor-cards-container");
+            const latest = results[0] || null;
+            
+            if (latest) {
+                document.getElementById('overall-score').innerText = latest.score;
+                const scoreColor = latest.score >= 80 ? 'text-[#00e676] border-[#00e676] bg-[#00e676]/10' : 
+                                  latest.score >= 50 ? 'text-[#ffab00] border-[#ffab00] bg-[#ffab00]/10' : 
+                                  'text-[#ff5252] border-[#ff5252] bg-[#ff5252]/10';
+                document.getElementById('overall-score').parentElement.className = `absolute inset-0 flex items-center justify-center rounded-full border-[3px] ${scoreColor}`;
+                
+                document.getElementById('score-ttfb').innerText = latest.ttfb + " ms";
+                document.getElementById('score-ttfb').className = "text-xl font-bold mt-1 " + getPerformanceColor(latest.ttfb);
+                
+                document.getElementById('score-total').innerText = latest.total_time + " ms";
+                document.getElementById('score-total').className = "text-xl font-bold mt-1 " + getPerformanceColor(latest.total_time);
+                
+                const isHealthy = latest.score >= 60 && latest.total_time < 2000;
+                document.getElementById('score-status').innerText = isHealthy ? "Healthy" : "Needs Optimization";
+                document.getElementById('score-status').className = "text-lg font-bold mt-1 " + (isHealthy ? "text-[#00e676]" : "text-[#ffab00]");
+                
+                const statusIcon = document.getElementById('live-status-indicator');
+                const statusText = document.getElementById('live-status-text');
+                if (latest.total_time > 1500 || latest.score < 50) {
+                    statusIcon.innerHTML = `<div class="relative flex items-center justify-center w-16 h-16 rounded-full bg-[#ff5252]/20 border border-[#ff5252]/50 mb-3 shadow-[0_0_15px_rgba(255,82,82,0.3)]">
+                        <span class="w-6 h-6 rounded-full bg-[#ff5252] animate-pulse"></span>
+                    </div>`;
+                    statusText.innerText = "Slow Response Detected";
+                    statusText.className = "text-lg font-bold text-[#ff5252] text-center";
+                } else {
+                    statusIcon.innerHTML = `<div class="relative flex items-center justify-center w-16 h-16 rounded-full bg-[#00e676]/20 border border-[#00e676]/50 mb-3 shadow-[0_0_15px_rgba(0,230,118,0.3)]">
+                        <span class="w-6 h-6 rounded-full bg-[#00e676] animate-pulse"></span>
+                    </div>`;
+                    statusText.innerText = "Website Healthy";
+                    statusText.className = "text-lg font-bold text-[#00e676] text-center";
+                }
+            }
+
+            container.innerHTML = results.map(r => {
+                const timeStr = formatTime(r.timestamp);
+                const ttfbColor = getProgressColor(r.ttfb);
+                const totalColor = getProgressColor(r.total_time);
+                return `
+                <div class="bg-black/30 border border-white/5 rounded-lg p-4 shadow-sm hover:border-[rgba(0,212,255,0.3)] transition-colors">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="font-mono text-xs text-gray-400 flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> ${timeStr}</div>
+                        <div class="text-[0.7rem] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${r.score > 75 ? 'bg-[#00e676]/10 text-[#00e676] border border-[#00e676]/20' : r.score > 50 ? 'bg-[#ffab00]/10 text-[#ffab00] border border-[#ffab00]/20' : 'bg-[#ff5252]/10 text-[#ff5252] border border-[#ff5252]/20'}">Score: ${r.score}</div>
+                    </div>
+                    
+                    <div class="space-y-3.5">
+                        <!-- TTFB Bar -->
+                        <div>
+                            <div class="flex justify-between text-[0.7rem] uppercase tracking-wider mb-1.5">
+                                <span class="text-gray-400 font-semibold">TTFB</span>
+                                <span class="font-mono text-white font-bold">${r.ttfb} <span class="text-gray-500 font-normal">ms</span></span>
+                            </div>
+                            <div class="w-full bg-black/40 rounded-full h-1.5 flex overflow-hidden border border-white/5">
+                                <div class="${ttfbColor} h-1.5 rounded-full" style="width: ${getProgressWidth(r.ttfb, 1000)}"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Total Time Bar -->
+                        <div>
+                            <div class="flex justify-between text-[0.7rem] uppercase tracking-wider mb-1.5">
+                                <span class="text-gray-400 font-semibold">Total Time</span>
+                                <span class="font-mono text-white font-bold">${(r.total_time / 1000).toFixed(2)} <span class="text-gray-500 font-normal">s</span></span>
+                            </div>
+                            <div class="w-full bg-black/40 rounded-full h-1.5 flex overflow-hidden border border-white/5">
+                                <div class="${totalColor} h-1.5 rounded-full" style="width: ${getProgressWidth(r.total_time, 3000)}"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join("");
+            
+            const rReversed = [...results].reverse();
+            const labels = rReversed.map(r => formatTime(r.timestamp));
+            const ttfb = rReversed.map(r => r.ttfb);
+            const total = rReversed.map(r => r.total_time);
+            
+            if(chart) {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = ttfb;
+                chart.data.datasets[1].data = total;
+                chart.update('none'); // Update without animation so it doesn't blink during polling
+            } else {
+                const ctx = document.getElementById("monitor-chart").getContext("2d");
+                chart = new Chart(ctx, {
+                    type: 'bar', 
+                    data: { 
+                        labels, 
+                        datasets: [
+                            { label: 'TTFB (ms)', data: ttfb, backgroundColor: '#00d4ff', borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.8 },
+                            { label: 'Total (ms)', data: total, backgroundColor: '#00e676', borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.8 }
+                        ] 
+                    },
+                    options: { 
+                        responsive: true, maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        scales: {
+                            x: { stacked: false, ticks: { color: "#8494a7", font: {family: 'JetBrains Mono', size: 10} }, grid: { display: false } },
+                            y: { stacked: false, ticks: { color: "#8494a7", font: {family: 'JetBrains Mono', size: 10} }, grid: { color: "rgba(255,255,255,0.04)" } }
+                        },
+                        plugins: { 
+                            legend: { position: 'top', align: 'end', labels: { color: "#8494a7", usePointStyle: true, boxWidth: 8, padding: 20 } },
+                            tooltip: { backgroundColor: 'rgba(15, 20, 35, 0.95)', titleColor: '#fff', bodyColor: '#e2e8f0', borderColor: 'rgba(0, 212, 255, 0.15)', borderWidth: 1, padding: 12, cornerRadius: 8, titleFont: {family: 'JetBrains Mono', size: 11}, bodyFont: {family: 'JetBrains Mono', size: 11} }
+                        }
+                    }
+                });
+            }
+        }
+        async function startMonitor() {
+            const url = document.getElementById("url-input").value.trim();
+            if(!url) return;
+            await fetch("/api/monitor/start", { 
+                method: "POST", 
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({url}) 
+            });
+            if(pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(() => fetchStatus(url), 10000);
+            fetchStatus(url);
+        }
+        async function stopMonitor() {
+            const url = document.getElementById("url-input").value.trim();
+            if(!url) return;
+            await fetch("/api/monitor/stop", { 
+                method: "POST", 
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({url}) 
+            });
+            if(pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+            
+            // Re-fetch to update status indicator
+            fetchStatus(url);
+        }
+
+        // On page load, check if there's an active monitoring job
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const r = await fetch("/api/monitor/status", { credentials: "include" });
+                if(r.ok) {
+                    const jobs = await r.json();
+                    if (Array.isArray(jobs)) {
+                        // Find a job that is active
+                        const activeJob = jobs.find(j => j.is_active);
+                        if(activeJob && activeJob.url) {
+                            document.getElementById("url-input").value = activeJob.url;
+                            if(pollInterval) clearInterval(pollInterval);
+                            pollInterval = setInterval(() => fetchStatus(activeJob.url), 10000);
+                            fetchStatus(activeJob.url);
+                        } else if (jobs.length > 0) {
+                            // If no active job but previous jobs exist, show the most recent one
+                            const recentJob = jobs[jobs.length - 1];
+                            if (recentJob && recentJob.url) {
+                                document.getElementById("url-input").value = recentJob.url;
+                                fetchStatus(recentJob.url);
+                            }
+                        }
+                    }
+                }
+            } catch(e) {
+                console.error("Error loading monitor status:", e);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Compare - CDN Performance Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="bg-grid"></div><div class="bg-glow bg-glow-1"></div><div class="bg-glow bg-glow-2"></div>
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon"><svg viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="url(#grad)" stroke-width="2.5"/></svg></div>
+                <div><h1>CDN Analyzer</h1><p class="subtitle">Provider Comparison</p></div>
+            </div>
+        </div>
+    </header>
+    <nav class="main-nav">
+        <div class="nav-inner">
+            <a href="/dashboard" class="nav-link">Analyzer</a>
+            <a href="/monitor" class="nav-link">Monitor</a>
+            <a href="/compare" class="nav-link active">Compare</a>
+            <a href="/map" class="nav-link">Global Map</a>
+            <a href="/errors" class="nav-link">Errors</a>
+        </div>
+    </nav>
+    <main class="main">
+        <section class="input-section">
+            <div class="input-card glass-card">
+                <div class="input-label">Compare URLs (Comma separated)</div>
+                <div class="input-row">
+                    <input type="text" id="urls-input" placeholder="example.com, github.com, cloudflare.com" style="flex:1; padding:14px 16px; background:rgba(0,0,0,0.3); color:#fff; border:1px solid rgba(100,140,255,0.08); border-radius:10px; font-family:var(--mono);">
+                    <button class="btn btn-primary" onclick="compareUrls()" id="btn-compare">Compare Now</button>
+                </div>
+            </div>
+        </section>
+        
+        <section class="loading-section" id="loading-section" style="display:none;">
+            <div class="glass-card loading-card">
+                <div class="spinner"></div>
+                <p class="loading-text">Analyzing Multiple URLs...</p>
+            </div>
+        </section>
+
+        <section id="compare-results" style="display:none; margin-top: 20px;">
+            <div class="glass-card">
+                <h3 class="card-title">Comparison Results</h3>
+                <div class="chart-container"><canvas id="compare-chart"></canvas></div>
+                <div class="table-wrap" style="margin-top: 28px;">
+                    <table class="history-table">
+                        <thead><tr><th>Provider</th><th>URL</th><th>DNS (ms)</th><th>TTFB (ms)</th><th>Total (ms)</th><th>Score</th></tr></thead>
+                        <tbody id="compare-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script>
+        let chart = null;
+        async function compareUrls() {
+            const val = document.getElementById("urls-input").value;
+            if(!val) return;
+            const urls = val.split(",").map(s => s.trim()).filter(s => s);
+            
+            document.getElementById("btn-compare").disabled = true;
+            document.getElementById("loading-section").style.display = "block";
+            document.getElementById("compare-results").style.display = "none";
+            
+            try {
+                const r = await fetch("/api/compare", { 
+                    method: "POST", 
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({urls}) 
+                });
+                const results = await r.json();
+                renderCompare(results, urls);
+            } catch(e) { alert("Error comparing URLs"); }
+            
+            document.getElementById("btn-compare").disabled = false;
+            document.getElementById("loading-section").style.display = "none";
+        }
+        
+        function renderCompare(results, requestedUrls) {
+            document.getElementById("compare-results").style.display = "block";
+            const tbody = document.getElementById("compare-table-body");
+            
+            // Highlight fastest TTFB
+            let bestTtfb = Infinity;
+            results.forEach(r => { if(r.ttfb < bestTtfb) bestTtfb = r.ttfb; });
+            
+            tbody.innerHTML = results.map(r => `<tr>
+                <td><span class="cdn-badge" style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:0.8rem; border:1px solid rgba(0,212,255,0.2); background:rgba(0,212,255,0.1); color:#00d4ff">${r.cdn||'Unknown'}</span></td>
+                <td>${r.domain || r.url}</td>
+                <td>${r.dns_time}</td>
+                <td style="${r.ttfb === bestTtfb ? 'color:#00e676; font-weight:bold;' : ''}">${r.ttfb}</td>
+                <td>${r.total_time}</td>
+                <td><span class="score-pill ${r.score>75?'score-pill-good':'score-pill-meh'}">${r.score}</span></td>
+            </tr>`).join("");
+            
+            const labels = results.map(r => r.domain || "Unknown");
+            const ttfb = results.map(r => r.ttfb);
+            const total = results.map(r => r.total_time);
+            
+            if(chart) chart.destroy();
+            const ctx = document.getElementById("compare-chart").getContext("2d");
+            chart = new Chart(ctx, {
+                type: 'bar', 
+                data: { 
+                    labels, 
+                    datasets: [
+                        { label: 'TTFB (ms)', data: ttfb, backgroundColor: 'rgba(255, 60, 172, 0.7)', borderRadius: 4 },
+                        { label: 'Total Time (ms)', data: total, backgroundColor: 'rgba(0, 230, 118, 0.7)', borderRadius: 4 }
+                    ] 
+                },
+                options: { 
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { ticks: { color: "#8494a7" }, grid: { color: "rgba(255,255,255,0.04)" } },
+                        y: { ticks: { color: "#8494a7" }, grid: { color: "rgba(255,255,255,0.04)" } }
+                    },
+                    plugins: { legend: { labels: { color: "#8494a7" } } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
