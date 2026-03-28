@@ -20,7 +20,7 @@ A **web-based tool** that analyzes the **CDN (Content Delivery Network) performa
 
 ## Project Structure
 ```
-cdn-analyzer/
+cdn-aalyzer/
 ├── backend/
 │   ├── app.py          # Flask API server
 │   └── analyzer.py     # Core CDN analysis engine
